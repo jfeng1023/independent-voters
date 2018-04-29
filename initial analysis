@@ -1,0 +1,86 @@
+library(ggplot2) 
+library(alluvial)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+
+voter <- read.csv('../input/VOTER_Survey_December16_Release1.csv', na.strings = c("", "__NA__"))
+
+# a quick look at the relationships between party affiliation, ideology, and voting choice
+table(voter$pid3_2016, voter$presvote16post_2016)
+table(voter$ideo5_2016, voter$presvote16post_2016)
+
+# get a subset to create an alluvial diagram
+voter_subset <- voter[ , c('pid3_2016', 'ideo5_2016', 'post_presvote12_2012', 'presvote16post_2016')]
+summary(voter_subset)
+colnames(voter_subset) <- c('Party_ID','Ideology','Vote_2012','Vote_2016')
+
+# combine and reorder levels for better presentation
+levels(voter_subset$Vote_2012) <- list(Democrat='Barack Obama', Did_not_vote=c('I did not vote', 'I did not vote in this race', 'Not sure'),
+                                      Republican='Mitt Romney', Other_candidate='Other candidate')
+
+levels(voter_subset$Vote_2016) <-list(Democrat='Hillary Clinton', Did_not_vote='Did not vote for President',
+                                      Republican='Donald Trump', Other_candidate=c('Evan McMullin','Gary Johnson','Jill Stein','Other'))
+
+levels(voter_subset$Vote_2012)
+voter_subset$Vote_2012 <- factor(voter_subset$Vote_2012,levels(voter_subset$Vote_2012)[c(1,3,4,2)])
+
+levels(voter_subset$Vote_2016)
+voter_subset$Vote_2016 <- factor(voter_subset$Vote_2016,levels(voter_subset$Vote_2016)[c(1,3,4,2)])
+
+levels(voter_subset$Ideology)
+voter_subset$Ideology <- factor(voter_subset$Ideology,levels(voter_subset$Ideology)[c(6,2,3,1,5,4)])
+
+independents <- subset(voter_subset, Party_ID %in% c('Independent', 'Other') & Vote_2012 != 'Did_not_vote' & Vote_2016 != 'Did_not_vote')
+summary(independents)
+
+# create alluvial table and generate diagram
+independents %>%
+group_by(Ideology,Vote_2012,Vote_2016) %>%
+summarise(N = n()) %>% 
+ungroup %>%
+na.omit -> alluvial_table
+
+alluvial(alluvial_table[ , c(-4)], freq=alluvial_table$N, col='skyblue', cw=0.2, cex=0.7)
+
+# select the subset of feeling thermometer and issue importance measures
+ft_issue <- subset(voter[,c(15,80:117)])
+summary(ft_issue)
+str(ft_issue)
+
+# exclude those who didn't vote and combine some levels
+ft_issue <- subset(ft_issue, presvote16post_2016 != 'Did not vote for President')
+levels(ft_issue$presvote16post_2016)[3] = 'Other'
+ft_issue$presvote16post_2016 <- factor(ft_issue$presvote16post_2016)
+ft_issue$presvote16post_2016 <- factor(ft_issue$presvote16post_2016, levels(ft_issue$presvote16post_2016)[c(1,4,3,5,2)])
+
+# extract the numbers in the feeling thermometer columns
+for(i in c(2:16)){
+    ft_issue[,i] <- parse_number(ft_issue[,i])
+}
+
+# change column names
+colnames(ft_issue) <- c('Vote_2016','Blacks','Whites','Hispanics','Asians','Muslims','Jews','Christians','Feminists','Immigrants','Black_Lives_Matter','Wall_Street_bankers','Gays_lesbians','Unions',
+                       'Police','Alt-right','Crime','Economy','Immigration','Environment','Religious_liberty','Terrorism','Gay_rights','Education','Family_medical_leave','Health_care',
+                       'Money_in_politics','Climate_change','Social_Security','Infrastructure_investment','Jobs','Budget_deficit','Poverty','Taxes','Medicare','Abortion','Size_government',
+                       'Racial_equality','Gender_equality')
+
+# convert issue importance ratings to numbers
+for(i in c(17:39)){
+    levels(ft_issue[,i]) <- list('1'='Unimportant', '2'='Not very important','3'='Somewhat important', '4'='Very important')
+    ft_issue[,i] <- as.numeric(ft_issue[,i])
+}
+
+# boxplots of some of the feeling thermometer measures
+par(mfrow=c(2,3))
+for(i in c(3,6,8,9,13,16)){
+    boxplot(ft_issue[,i]~ft_issue[,1], main=colnames(ft_issue)[i], col=rainbow(5), las=2)
+}
+
+# couple of issue importance plots
+gov_size <- ggplot(ft_issue, aes(x=Vote_2016, y=Size_government, color=Vote_2016))+geom_jitter()
+gov_size + stat_summary(fun.y=mean, geom="point", shape=18,size=3, color="red")
+                 
+religion <- ggplot(ft_issue, aes(x=Vote_2016, y=Religious_liberty, color=Vote_2016))+geom_jitter()
+religion + stat_summary(fun.y=mean, geom="point", shape=18, size=3, color="red")
