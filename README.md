@@ -1,1 +1,1 @@
-# independent-voters
+This was part of the Data Incubator challenge I did in April 2018. I used data from the 2016 survey by the Democracy Fund Voter Study Group (https://www.voterstudygroup.org/publications/2016-elections/data) to explore patterns in independent voters and third-party voters.
